@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="SafePath Twin · Gemelo Digital de Riesgo Vial para Bicicletas y Patinetas Eléctricas en Bogotá. Hackatón SafeMotion 26." />
+<meta name="theme-color" content="#070a12" />
+<title>SafePath Twin · Gemelo Digital de Riesgo Vial · Bogotá 2024</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+<!-- Leaflet (map) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+
+<!-- Chart.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─────────────  AMBIENT BACKGROUND  ───────────── -->
+<div class="ambient" aria-hidden="true">
+  <div class="grid-layer"></div>
+  <div class="glow glow-cyan"></div>
+  <div class="glow glow-red"></div>
+  <div class="scanline"></div>
+</div>
+
+<!-- ─────────────  TOP STATUS BAR  ───────────── -->
+<div class="status-bar" role="banner">
+  <div class="status-left">
+    <span class="status-dot live"></span>
+    <span class="status-text">SDM · ANUARIO 2024 — DATA LIVE</span>
+  </div>
+  <div class="status-mid">
+    <span class="kv"><em>SYSTEM</em><b>SafePath::Twin v0.9</b></span>
+    <span class="kv"><em>PHASE</em><b>01 / DIAGNÓSTICO</b></span>
+    <span class="kv"><em>REGISTROS</em><b id="liveRecords">13.949</b></span>
+  </div>
+  <div class="status-right">
+    <span class="clock" id="liveClock">--:--:--</span>
+    <span class="status-loc">BOGOTÁ · 4.71°N / 74.07°W</span>
+  </div>
+</div>
+
+<!-- ─────────────  APP SHELL  ───────────── -->
+<div class="app">
+
+  <!-- ═════  SIDEBAR  ═════ -->
+  <aside class="sidebar" aria-label="Controles del gemelo digital">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <defs>
+            <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#00d4ff" />
+              <stop offset="100%" stop-color="#0088aa" />
+            </linearGradient>
+          </defs>
+          <path d="M20 3 L34 11 L34 25 L20 37 L6 25 L6 11 Z" fill="none" stroke="url(#bg)" stroke-width="1.6"/>
+          <circle cx="20" cy="20" r="3.5" fill="#00d4ff"/>
+          <circle cx="20" cy="20" r="8" fill="none" stroke="#00d4ff" stroke-width="0.6" opacity=".5"/>
+          <circle cx="20" cy="20" r="13" fill="none" stroke="#00d4ff" stroke-width="0.4" opacity=".25"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>SafePath<span>Twin</span></h1>
+        <p>Gemelo Digital de Riesgo Vial</p>
+      </div>
+    </div>
+
+    <nav class="side-nav" aria-label="Secciones">
+      <a class="active" href="#overview"><span></span>Panorama</a>
+      <a href="#map"><span></span>Mapa de Riesgo</a>
+      <a href="#temporal"><span></span>Patrones Temporales</a>
+      <a href="#spatial"><span></span>Zonas Críticas</a>
+      <a href="#focus"><span></span>Foco Micromovilidad</a>
+    </nav>
+
+    <section class="filter-block">
+      <h3>Modo de micromovilidad</h3>
+      <div class="seg" role="tablist" id="modeSeg">
+        <button class="seg-btn active" data-mode="all" role="tab">Todos</button>
+        <button class="seg-btn" data-mode="bici" role="tab">Bici</button>
+        <button class="seg-btn" data-mode="patineta" role="tab">Patineta</button>
+      </div>
+      <p class="seg-hint" id="modeHint">Vista agregada: 13.949 siniestros 2024</p>
+    </section>
+
+    <section class="filter-block">
+      <h3>Gravedad mostrada en el mapa</h3>
+      <label class="check"><input type="checkbox" checked data-sev="3"><span class="dot sev-3"></span><em>Con Muertos</em><b>551</b></label>
+      <label class="check"><input type="checkbox" checked data-sev="2"><span class="dot sev-2"></span><em>Con Heridos</em><b>12.361</b></label>
+      <label class="check"><input type="checkbox" data-sev="1"><span class="dot sev-1"></span><em>Solo Daños</em><b>1.037</b></label>
+    </section>
+
+    <section class="filter-block">
+      <h3>Franja horaria</h3>
+      <div class="range-wrap">
+        <input type="range" id="hourRange" min="0" max="23" value="7" step="1" />
+        <div class="range-vals">
+          <span>00h</span>
+          <b id="hourPick">07h</b>
+          <span>23h</span>
+        </div>
+        <p class="range-hint" id="hourHint">Pico mañana 06–08h · 27% de eventos en franjas pico</p>
+      </div>
+    </section>
+
+    <section class="filter-block">
+      <h3>Infraestructura</h3>
+      <label class="check"><input type="checkbox" checked><em>Corredores arteriales</em></label>
+      <label class="check"><input type="checkbox" checked><em>Cicloinfraestructura</em></label>
+      <label class="check"><input type="checkbox"><em>Intersecciones críticas</em></label>
+    </section>
+
+    <div class="alert-card">
+      <div class="alert-head">
+        <span class="alert-pulse"></span>
+        <em>ALERTA SISTÉMICA</em>
+      </div>
+      <p>Convergencia detectada: <b>Av. Caracas × Calle 53</b>, franja 06–08h. Riesgo alto para ciclistas hoy.</p>
+      <button class="alert-cta">Ver corredor</button>
+    </div>
+
+    <footer class="side-foot">
+      <p>HACKATÓN SAFEMOTION 26</p>
+      <p>Universidad EAN · Sitt &amp; Cía</p>
+    </footer>
+  </aside>
+
+  <!-- ═════  MAIN  ═════ -->
+  <main class="main">
+
+    <!-- HEADER -->
+    <header class="hero" id="overview">
+      <div class="hero-left">
+        <p class="kicker">FASE 01 · DIAGNÓSTICO · BOGOTÁ 2024</p>
+        <h2>De los datos abiertos<br/>a la <em>prevención accionable</em>.</h2>
+        <p class="lede">SafePath Twin convierte el Anuario de Siniestralidad de la Secretaría Distrital de Movilidad en un gemelo digital geotemporal. Cada punto del mapa es un evento real. Cada métrica, una decisión preventiva posible para ciclistas, patinadores y gestores de movilidad.</p>
+      </div>
+      <div class="hero-right">
+        <div class="hero-chip">
+          <span class="chip-label">RIESGO COMPUESTO HOY</span>
+          <div class="chip-gauge" id="gauge">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" stroke="rgba(255,255,255,.06)" stroke-width="10" fill="none"/>
+              <circle id="gaugeArc" cx="60" cy="60" r="50" stroke="#ff4d6d" stroke-width="10" fill="none"
+                      stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="80"
+                      transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="chip-val"><b id="gaugeVal">74</b><em>/100</em></div>
+          </div>
+          <p class="chip-tag"><span class="sev-dot sev-3"></span>ALTO · Picos pico 06–08h</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- KPI ROW (Glassmorphism) -->
+    <section class="kpi-grid" aria-label="Indicadores clave 2024">
+      <article class="kpi glass">
+        <header><span class="kpi-tag">TOTAL SINIESTROS</span><span class="kpi-yr">2024</span></header>
+        <div class="kpi-num" id="k1">0</div>
+        <footer>
+          <span class="trend up">▲ 17.3%</span>
+          <span class="kpi-sub">del riesgo vial urbano</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk1" width="120" height="34"></canvas></div>
+      </article>
+
+      <article class="kpi glass red">
+        <header><span class="kpi-tag">VÍCTIMAS FATALES</span><span class="kpi-yr">2024</span></header>
+        <div class="kpi-num" id="k2">0</div>
+        <footer>
+          <span class="trend down">3.95% tasa</span>
+          <span class="kpi-sub">por siniestro</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk2" width="120" height="34"></canvas></div>
+      </article>
+
+      <article class="kpi glass amber">
+        <header><span class="kpi-tag">PERSONAS HERIDAS</span><span class="kpi-yr">2024</span></header>
+        <div class="kpi-num" id="k3">0</div>
+        <footer>
+          <span class="trend">88.6%</span>
+          <span class="kpi-sub">de los casos</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk3" width="120" height="34"></canvas></div>
+      </article>
+
+      <article class="kpi glass green">
+        <header><span class="kpi-tag">SINIESTROS CON BICI</span><span class="kpi-yr">2024</span></header>
+        <div class="kpi-num" id="k4">0</div>
+        <footer>
+          <span class="trend">14.6%</span>
+          <span class="kpi-sub">del total · foco SafePath</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk4" width="120" height="34"></canvas></div>
+      </article>
+
+      <article class="kpi glass purple">
+        <header><span class="kpi-tag">CICLISTAS FALLECIDOS</span><span class="kpi-yr">2024</span></header>
+        <div class="kpi-num" id="k5">0</div>
+        <footer>
+          <span class="trend">1 c/ 4.6 días</span>
+          <span class="kpi-sub">víctimas en bicicleta</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk5" width="120" height="34"></canvas></div>
+      </article>
+
+      <article class="kpi glass cyan">
+        <header><span class="kpi-tag">RIESGO ACTUAL</span><span class="kpi-yr">LIVE</span></header>
+        <div class="kpi-num"><span id="k6">0</span><em>/100</em></div>
+        <footer>
+          <span class="trend up">ALTO</span>
+          <span class="kpi-sub">índice geotemporal compuesto</span>
+        </footer>
+        <div class="kpi-spark"><canvas id="spk6" width="120" height="34"></canvas></div>
+      </article>
+    </section>
+
+    <!-- MAP + LIVE PANEL -->
+    <section class="block map-block" id="map">
+      <div class="card map-card">
+        <div class="card-head">
+          <div>
+            <span class="sec-title">// CAPA GEOTEMPORAL</span>
+            <h3>Mapa de Calor · Siniestros 2024 con bicicleta en Bogotá</h3>
+          </div>
+          <div class="map-toolbar">
+            <button class="tool-btn active" data-layer="heat">Heatmap</button>
+            <button class="tool-btn" data-layer="points">Puntos</button>
+            <button class="tool-btn" data-layer="corridor">Corredores</button>
+          </div>
+        </div>
+        <div id="leaflet" class="leaflet-canvas" role="region" aria-label="Mapa de calor de siniestralidad"></div>
+        <div class="map-legend">
+          <span class="legend-title">INTENSIDAD DE RIESGO</span>
+          <span class="legend-grad"></span>
+          <span class="legend-min">Bajo</span>
+          <span class="legend-max">Crítico</span>
+          <span class="legend-sep"></span>
+          <span class="legend-count"><b id="visiblePoints">2.042</b> puntos visibles</span>
+        </div>
+      </div>
+
+      <aside class="card live-card">
+        <span class="sec-title">// CORREDORES CRÍTICOS</span>
+        <h3>Top de exposición</h3>
+        <ul class="corridor-list" id="corridorList">
+          <li class="cor-row" data-coord="Caracas">
+            <span class="cor-rank">01</span>
+            <div class="cor-body">
+              <b>Av. Caracas</b>
+              <em>Alta velocidad · intersecciones densas</em>
+            </div>
+            <span class="cor-val">14.2%</span>
+            <span class="cor-bar"><i style="width:92%"></i></span>
+          </li>
+          <li class="cor-row">
+            <span class="cor-rank">02</span>
+            <div class="cor-body">
+              <b>NQS</b>
+              <em>Tráfico mixto · conectividad arterial</em>
+            </div>
+            <span class="cor-val">13.0%</span>
+            <span class="cor-bar"><i style="width:84%"></i></span>
+          </li>
+          <li class="cor-row">
+            <span class="cor-rank">03</span>
+            <div class="cor-body">
+              <b>Calle 80</b>
+              <em>Flujos intensos · discontinuidad ciclovial</em>
+            </div>
+            <span class="cor-val">10.8%</span>
+            <span class="cor-bar"><i style="width:70%"></i></span>
+          </li>
+          <li class="cor-row">
+            <span class="cor-rank">04</span>
+            <div class="cor-body">
+              <b>Av. Boyacá</b>
+              <em>Cruces sin separación ciclovial</em>
+            </div>
+            <span class="cor-val">7.1%</span>
+            <span class="cor-bar"><i style="width:46%"></i></span>
+          </li>
+          <li class="cor-row">
+            <span class="cor-rank">05</span>
+            <div class="cor-body">
+              <b>Av. 1° de Mayo</b>
+              <em>Tramo Kennedy–Bosa</em>
+            </div>
+            <span class="cor-val">5.4%</span>
+            <span class="cor-bar"><i style="width:35%"></i></span>
+          </li>
+        </ul>
+
+        <div class="callout">
+          <p><strong>38%</strong> de los siniestros con bicicleta ocurren en tres corredores. SafePath Twin prioriza alertas preventivas sobre estos ejes en franjas 06–08h y 17–19h.</p>
+        </div>
+      </aside>
+    </section>
+
+    <!-- TEMPORAL BLOCK -->
+    <section class="block g-2" id="temporal">
+      <div class="card">
+        <span class="sec-title">// PATRÓN HORARIO</span>
+        <h3>Vulnerabilidad por franja horaria</h3>
+        <div class="hour-strip" id="hourStrip" aria-hidden="true"></div>
+        <div class="chart-wrap h-sm"><canvas id="cHora"></canvas></div>
+        <div class="insight warn">
+          <p><strong>27%</strong> de los eventos entre <b>06–08h</b> y <strong>27%</strong> entre <b>17–19h</b>. Las horas pico duplican la vulnerabilidad para ciclistas.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="sec-title">// SERIE MENSUAL</span>
+        <h3>Estacionalidad 2024 · total vs. bici vs. fallecidos</h3>
+        <div class="chart-wrap h-md"><canvas id="cMes"></canvas></div>
+        <div class="micro-stats">
+          <div><b>Marzo</b><em>Inicio académico</em></div>
+          <div><b>Julio</b><em>Clima variable</em></div>
+          <div><b>Octubre</b><em>Pico de movilidad</em></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SPATIAL BLOCK -->
+    <section class="block g-2-1" id="spatial">
+      <div class="card">
+        <span class="sec-title">// TERRITORIOS DE RIESGO</span>
+        <h3>Top 12 localidades · total vs. bicicleta</h3>
+        <div class="chart-wrap h-lg"><canvas id="cLocalidad"></canvas></div>
+        <div class="insight">
+          <p><strong>Kennedy, Engativá y Suba</strong> concentran <b>42%</b> de los siniestros con bicicleta. Alta densidad, cicloinfraestructura insuficiente.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="sec-title">// TIPOLOGÍA</span>
+        <h3>Clase de siniestro</h3>
+        <div class="chart-wrap h-md"><canvas id="cClase"></canvas></div>
+        <ul class="legend-list">
+          <li><span class="dot" style="background:#00d4ff"></span><em>Choque</em><b>70.7%</b></li>
+          <li><span class="dot" style="background:#ff4d6d"></span><em>Atropello</em><b>20.4%</b></li>
+          <li><span class="dot" style="background:#fbbf24"></span><em>Caída de ocupante</em><b>5.0%</b></li>
+          <li><span class="dot" style="background:#a78bfa"></span><em>Volcamiento</em><b>2.8%</b></li>
+          <li><span class="dot" style="background:#64748b"></span><em>Otro / incendio</em><b>1.1%</b></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ACTORES + FACTORES -->
+    <section class="block g-2">
+      <div class="card">
+        <span class="sec-title">// CONTRAPARTES</span>
+        <h3>Actores viales involucrados</h3>
+        <div id="actorBars"></div>
+      </div>
+
+      <div class="card">
+        <span class="sec-title">// FACTORES ASOCIADOS</span>
+        <h3>Condiciones presentes en el evento</h3>
+        <div class="chart-wrap h-md"><canvas id="cFactores"></canvas></div>
+        <div class="insight danger">
+          <p>La <strong>embriaguez</strong> aparece en <b>538</b> siniestros y la <strong>velocidad excesiva</strong> en <b>83</b>. Ambos se correlacionan fuertemente con casos fatales.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIA SEMANA -->
+    <section class="block" >
+      <div class="card">
+        <span class="sec-title">// PATRÓN SEMANAL</span>
+        <h3>Distribución por día de la semana</h3>
+        <div class="weekgrid" id="weekgrid"></div>
+        <div class="insight">
+          <p><b>Viernes y sábado</b> registran los picos semanales (2.168 y 2.165 siniestros). El fin de semana intensifica colisiones nocturnas asociadas a embriaguez.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOCUS BICI -->
+    <section class="block focus" id="focus">
+      <div class="card focus-card">
+        <div class="focus-head">
+          <span class="sec-title">// FOCO SAFEPATH TWIN</span>
+          <h3>Ciclistas en Bogotá · oportunidad de intervención</h3>
+        </div>
+
+        <div class="focus-grid">
+          <div class="focus-stat">
+            <span class="fs-tag">PARTICIPACIÓN</span>
+            <b>14.6<em>%</em></b>
+            <p>de los siniestros viales involucran bicicleta</p>
+          </div>
+          <div class="focus-stat">
+            <span class="fs-tag">CONCENTRACIÓN</span>
+            <b>42<em>%</em></b>
+            <p>en sólo 3 localidades: Kennedy · Engativá · Suba</p>
+          </div>
+          <div class="focus-stat">
+            <span class="fs-tag">VENTANA CRÍTICA</span>
+            <b>54<em>%</em></b>
+            <p>de eventos en franjas pico 06–08h y 17–19h</p>
+          </div>
+          <div class="focus-stat">
+            <span class="fs-tag">GRANULARIDAD</span>
+            <b>2.042</b>
+            <p>coordenadas GPS reales mapeables 1:1</p>
+          </div>
+        </div>
+
+        <div class="chart-wrap h-sm"><canvas id="cBici"></canvas></div>
+
+        <div class="focus-callout">
+          <div>
+            <h4>¿Por qué este gemelo digital?</h4>
+            <p>El riesgo vial de la micromovilidad <b>no es aleatorio</b>: es la convergencia sistemática de espacio, tiempo, infraestructura y ausencia de información preventiva. SafePath Twin rompe esa convergencia entregando lectura geotemporal accionable <b>antes del viaje</b>.</p>
+          </div>
+          <div class="action-buttons">
+            <button class="btn primary">Ver corredores prioritarios</button>
+            <button class="btn ghost">Descargar diagnóstico</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="foot">
+      <div class="foot-left">
+        <b>SafePath Twin</b> · Hackatón SafeMotion 26 · Mayo 2026 · Fase 1 — Diagnóstico
+      </div>
+      <div class="foot-right">
+        Fuente: <a href="https://datos.gov.co" target="_blank" rel="noopener">Secretaría Distrital de Movilidad</a> · Base Anuario de Siniestralidad 2024 · datos.gov.co
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<script defer src="script.js"></script>
+</body>
+</html>
